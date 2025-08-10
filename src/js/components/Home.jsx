@@ -1,72 +1,145 @@
-import React from "react";
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
 
-//include images into your bundle
-import rigoImage from "../../img/rigo-baby.jpg";
-
-//create your first component
 const Home = () => {
-    const [items, setItems] = useState("");
-    const [tasks, setTasks] = useState([]);
+    
+    const [items, setItems] = useState(""); 
+    const [tasks, setTasks] = useState([]); 
+    
+    const username = "raaronpgomez"; 
+    const API_URL = `https://playground.4geeks.com/todo`;
+
+    const getTodos = () => {
+        fetch(`${API_URL}/users/${username}`)
+            .then(resp => {
+                if (resp.status === 404) {
+                    createUser();
+                    return null;
+                }
+                if (!resp.ok) throw new Error("Error al cargar las tareas");
+                return resp.json();
+            })
+            .then(data => {
+                if (data) {
+                    setTasks(data.todos);
+                }
+            })
+            .catch(error => console.error(error));
+    };
+
+    
+    const createUser = () => {
+        fetch(`${API_URL}/users/${username}`, { method: "POST" })
+            .then(resp => {
+                if (!resp.ok) throw new Error("Error al crear usuario");
+                return resp.json();
+            })
+            .then(() => getTodos()) 
+            .catch(error => console.error(error));
+    };
 
     const addTask = (e) => {
         if (e.key === "Enter" && items.trim() !== "") {
-            setTasks([...tasks, items.trim()]);
-            setItems("");
+            const newTask = { label: items.trim(), is_done: false };
+            fetch(`${API_URL}/todos/${username}`, {
+                method: "POST",
+                body: JSON.stringify(newTask),
+                headers: { "Content-Type": "application/json" }
+            })
+            .then(resp => {
+                if (!resp.ok) throw new Error("Error al añadir la tarea");
+                return resp.json();
+            })
+            .then(() => {
+                setItems(""); 
+                getTodos();
+            })
+            .catch(error => console.error(error));
         }
     };
 
-    const deleteTask = (index) => {
-        setTasks(tasks.filter((_, i) => i !== index));
+    const deleteTask = (taskId) => {
+        fetch(`${API_URL}/todos/${taskId}`, { method: "DELETE" })
+            .then(resp => {
+                if (!resp.ok && resp.status !== 204) {
+                    throw new Error("Error al eliminar la tarea");
+                }
+                getTodos(); 
+            })
+            .catch(error => console.error(error));
     };
 
+    const clearAllTasks = () => {
+        fetch(`${API_URL}/users/${username}`, { method: "DELETE" })
+            .then(resp => {
+                if (!resp.ok && resp.status !== 204) {
+                    throw new Error("Error al limpiar las tareas");
+                }
+
+                createUser();
+            })
+            .catch(error => console.error(error));
+    };
+
+    useEffect(() => {
+        getTodos();
+    }, []);
+
     return (
-        <div className="container mt-5">
-            <h1 className="text-center text-muted mb-4" style={{ fontSize: "3rem" }}>
-                Todos
+        <div className="container mt-5" style={{maxWidth: "600px"}}>
+            <h1 className="text-center text-muted mb-4" style={{ fontSize: "5rem", fontWeight: "100" }}>
+                todos
             </h1>
 
-            <input
-                type="text"
-                className="form-control mb-3"
-                placeholder="What needs to be done?"
-                value={items}
-                onChange={(e) => setItems(e.target.value)}
-                onKeyDown={addTask}
-            />
-
-            <ul className="list-group">
-                {tasks.length === 0 ? (
-                    <li className="list-group-item text-muted">No tasks, add tasks</li>
-                ) : (
-                    tasks.map((task, index) => (
-                        <li
-                            key={index}
-                            className="list-group-item d-flex justify-content-between align-items-center task-item"
-                        >
-                            {task}
-                            <button
-                                className="btn btn-danger btn-sm delete-btn"
-                                onClick={() => deleteTask(index)}
-                                style={{ display: "none" }}
+            <div className="card shadow">
+                <input
+                    type="text"
+                    className="form-control form-control-lg border-0"
+                    placeholder="What needs to be done?"
+                    value={items}
+                    onChange={(e) => setItems(e.target.value)}
+                    onKeyDown={addTask}
+                />
+                <ul className="list-group list-group-flush">
+                    {tasks.length === 0 ? (
+                        <li className="list-group-item text-muted">No tasks, add a task</li>
+                    ) : (
+                        tasks.map((task) => (
+                            <li
+                                key={task.id}
+                                className="list-group-item d-flex justify-content-between align-items-center task-item"
                             >
-                                X
-                            </button>
-                        </li>
-                    ))
-                )}
-            </ul>
-
-            <div className="text-muted mt-3">
-                {tasks.length === 0
-                    ? "There are no items left."
-                    : `Item${tasks.length > 1 ? "s" : ""} left: ${tasks.length}`}
+                                {task.label} {}
+                                <button
+                                    className="btn btn-sm delete-btn"
+                                    onClick={() => deleteTask(task.id)} 
+                                >
+                                    &times; {}
+                                </button>
+                            </li>
+                        ))
+                    )}
+                </ul>
+                <div className="card-footer text-muted d-flex justify-content-between align-items-center">
+                    <span>
+                        {tasks.length} item{tasks.length !== 1 ? "s" : ""} left
+                    </span>
+                    <button className="btn btn-outline-danger btn-sm" onClick={clearAllTasks}>
+                        Clear All Tasks
+                    </button>
+                </div>
             </div>
-
+            
+            {}
             <style>
                 {`
+                    .task-item .delete-btn {
+                        visibility: hidden;
+                        opacity: 0;
+                        transition: opacity 0.2s ease-in-out;
+                    }
                     .task-item:hover .delete-btn {
-                        display: inline-block !important;
+                        visibility: visible;
+                        opacity: 1;
                     }
                 `}
             </style>
